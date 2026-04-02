@@ -30,3 +30,12 @@ services:
       - ${APP_EXT_TARGETS_BIND:-./_ext_targets}:/_ext_targets
       - ${APP_EXTERNAL_LOGS_BIND:-./external_logs}:/app/services/external_logs
     shm_size: "1gb"
+    networks:
+      - anyautoregister
+      - apinetwork
+      
+networks:
+  anyautoregister:
+    name: anyautoregister
+  apinetwork:
+    name: apinetwork
