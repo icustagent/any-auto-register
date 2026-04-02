@@ -38,4 +38,4 @@ networks:
   anyautoregister:
     name: anyautoregister
   apinetwork:
-    name: apinetwork
+    external: true
