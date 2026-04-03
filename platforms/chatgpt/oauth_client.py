@@ -2232,6 +2232,76 @@ class OAuthClient:
         """处理 OAuth 阶段的邮箱 OTP 验证，返回服务端声明的下一步状态。"""
         self._log("步骤4: 检测到邮箱 OTP 验证")
 
+        def _resend_email_otp() -> bool:
+            prefer_passwordless = bool(
+                self.config.get("prefer_passwordless_login")
+                or self.config.get("force_passwordless_login")
+            )
+            resend_ok = False
+            if prefer_passwordless:
+                request_url = f"{self.oauth_issuer}/api/accounts/passwordless/send-otp"
+                headers = self._headers(
+                    request_url,
+                    user_agent=user_agent,
+                    sec_ch_ua=sec_ch_ua,
+                    accept="application/json",
+                    referer=state.current_url
+                    or state.continue_url
+                    or f"{self.oauth_issuer}/log-in/password",
+                    origin=self.oauth_issuer,
+                    content_type="application/json",
+                    fetch_site="same-origin",
+                    extra_headers={
+                        "oai-device-id": device_id,
+                    },
+                )
+                headers.update(generate_datadog_trace())
+                try:
+                    kwargs = {"headers": headers, "timeout": 30, "allow_redirects": False}
+                    if impersonate:
+                        kwargs["impersonate"] = impersonate
+                    self._browser_pause()
+                    resp = self.session.post(request_url, **kwargs)
+                    self._log(f"/passwordless/send-otp -> {resp.status_code}")
+                    if resp.status_code == 200:
+                        resend_ok = True
+                except Exception as e:
+                    self._log(f"passwordless resend 异常: {e}")
+
+            if resend_ok:
+                self._log("已触发 passwordless OTP 重发")
+                return True
+
+            request_url = f"{self.oauth_issuer}/api/accounts/email-otp/send"
+            headers = self._headers(
+                request_url,
+                user_agent=user_agent,
+                sec_ch_ua=sec_ch_ua,
+                accept="application/json, text/plain, */*",
+                referer=state.current_url
+                or state.continue_url
+                or f"{self.oauth_issuer}/email-verification",
+                fetch_site="same-origin",
+                extra_headers={
+                    "oai-device-id": device_id,
+                },
+            )
+            headers.update(generate_datadog_trace())
+            try:
+                kwargs = {"headers": headers, "timeout": 30, "allow_redirects": True}
+                if impersonate:
+                    kwargs["impersonate"] = impersonate
+                self._browser_pause()
+                resp = self.session.get(request_url, **kwargs)
+                self._log(f"/email-otp/send -> {resp.status_code}")
+                if resp.status_code == 200:
+                    self._log("已触发 email-otp 重发")
+                    return True
+                self._log(f"email-otp/send 重发失败: {resp.text[:120]}")
+            except Exception as e:
+                self._log(f"email-otp/send 重发异常: {e}")
+            return False
+
         request_url = f"{self.oauth_issuer}/api/accounts/email-otp/validate"
         self._log(f"email_otp_validate: device_id={device_id}")
         sentinel_otp = get_sentinel_token_via_browser(
@@ -2294,8 +2364,20 @@ class OAuthClient:
             otp_wait_seconds = 600
         otp_wait_seconds = max(30, min(otp_wait_seconds, 3600))
         otp_poll_window = min(30, max(10, otp_wait_seconds))
+        try:
+            otp_resend_wait_seconds = int(
+                self.config.get(
+                    "chatgpt_oauth_otp_resend_wait_seconds",
+                    self.config.get("chatgpt_otp_resend_wait_seconds", 120),
+                )
+                or 120
+            )
+        except Exception:
+            otp_resend_wait_seconds = 120
+        otp_resend_wait_seconds = max(30, min(otp_resend_wait_seconds, 900))
         otp_deadline = time.time() + otp_wait_seconds
         otp_sent_at = time.time()
+        next_resend_at = otp_sent_at + otp_resend_wait_seconds
         self._log(
             f"OAuth OTP 等待窗口: total={otp_wait_seconds}s, poll_window={otp_poll_window}s"
         )
@@ -2363,6 +2445,15 @@ class OAuthClient:
                     code = None
 
                 if not code:
+                    if time.time() >= next_resend_at and not self.last_error:
+                        self._log(
+                            f"暂未收到 OTP，触发重发（间隔 {otp_resend_wait_seconds}s）"
+                        )
+                        if _resend_email_otp():
+                            otp_sent_at = time.time()
+                            next_resend_at = otp_sent_at + otp_resend_wait_seconds
+                        else:
+                            next_resend_at = time.time() + otp_resend_wait_seconds
                     self._log("暂未收到新的 OTP，继续等待...")
                     if self.last_error:
                         break
