@@ -252,6 +252,10 @@ class OAuthClient:
     def _state_is_login_password(self, state: FlowState):
         return state.page_type == "login_password"
 
+    def _state_is_create_account_password(self, state: FlowState):
+        target = f"{state.continue_url} {state.current_url}".lower()
+        return state.page_type == "create_account_password" or "create-account/password" in target
+
     def _state_is_email_otp(self, state: FlowState):
         target = f"{state.continue_url} {state.current_url}".lower()
         return (
@@ -835,6 +839,7 @@ class OAuthClient:
         prefer_passwordless_login=False,
         allow_phone_verification=True,
         force_new_browser=False,
+        force_password_login=False,
         screen_hint="login",
         complete_about_you_if_needed=False,
         first_name="",
@@ -856,6 +861,7 @@ class OAuthClient:
             skymail_client: Skymail 客户端（用于获取 OTP，如果需要）
             prefer_passwordless_login: 是否强制走 passwordless OTP 链路
             allow_phone_verification: add_phone 后是否允许进入手机号验证码分支
+            force_password_login: 即使 prefer_passwordless_login=true，也强制走密码登录
             complete_about_you_if_needed: 命中 about_you 后是否自动提交资料完成注册
             screen_hint: authorize/continue 的 screen_hint（login/signup）
             first_name: about_you 名字
@@ -879,6 +885,7 @@ class OAuthClient:
             f"allow_phone_verification={'on' if allow_phone_verification else 'off'}, "
             f"complete_about_you_if_needed={'on' if complete_about_you_if_needed else 'off'}, "
             f"force_new_browser={'on' if force_new_browser else 'off'}, "
+            f"force_password_login={'on' if force_password_login else 'off'}, "
             f"screen_hint={screen_hint or 'login'}"
         )
 
@@ -968,7 +975,7 @@ class OAuthClient:
                     self._log("换取 tokens 失败")
                 return tokens
 
-            if prefer_passwordless_login and self._state_is_login_password(state):
+            if prefer_passwordless_login and (not force_password_login) and self._state_is_login_password(state):
                 next_state = self._send_passwordless_login_otp(
                     email,
                     device_id,
@@ -980,6 +987,24 @@ class OAuthClient:
                 if not next_state:
                     if not self.last_error:
                         self._set_error("passwordless OTP 触发后未进入邮箱验证码状态")
+                    return None
+                referer = state.current_url or referer
+                state = next_state
+                continue
+
+            if self._state_is_create_account_password(state) and force_password_login:
+                self._log("命中 create_account_password，按强制密码登录路径继续")
+                next_state = self._submit_password_verify(
+                    password,
+                    device_id,
+                    user_agent=user_agent,
+                    sec_ch_ua=sec_ch_ua,
+                    impersonate=impersonate,
+                    referer=state.current_url or state.continue_url or f"{self.oauth_issuer}/log-in/password",
+                )
+                if not next_state:
+                    if not self.last_error:
+                        self._set_error("密码验证后未进入下一步 OAuth 状态")
                     return None
                 referer = state.current_url or referer
                 state = next_state
