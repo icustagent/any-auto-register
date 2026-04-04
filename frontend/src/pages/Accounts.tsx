@@ -629,6 +629,10 @@ export default function Accounts() {
       const executorType = normalizeExecutorForPlatform(currentPlatform, cfg.default_executor)
       const registerExtra = {
         mail_provider: cfg.mail_provider || 'luckmail',
+        applemail_base_url: cfg.applemail_base_url,
+        applemail_pool_dir: cfg.applemail_pool_dir,
+        applemail_pool_file: cfg.applemail_pool_file,
+        applemail_mailboxes: cfg.applemail_mailboxes,
         laoudo_auth: cfg.laoudo_auth,
         laoudo_email: cfg.laoudo_email,
         laoudo_account_id: cfg.laoudo_account_id,
@@ -667,6 +671,7 @@ export default function Accounts() {
         cfworker_domain: cfg.cfworker_domain,
         cfworker_subdomain: cfg.cfworker_subdomain,
         cfworker_random_subdomain: parseBooleanConfigValue(cfg.cfworker_random_subdomain),
+        cfworker_random_name_subdomain: parseBooleanConfigValue(cfg.cfworker_random_name_subdomain),
         cfworker_fingerprint: cfg.cfworker_fingerprint,
         smstome_cookie: cfg.smstome_cookie,
         smstome_country_slugs: cfg.smstome_country_slugs,

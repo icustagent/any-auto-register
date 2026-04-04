@@ -42,6 +42,10 @@ export default function RegisterTaskPage() {
         executor_type: normalizeExecutorForPlatform(currentPlatform, cfg.default_executor),
         captcha_solver: cfg.default_captcha_solver || 'yescaptcha',
         mail_provider: cfg.mail_provider || 'luckmail',
+        applemail_base_url: cfg.applemail_base_url || 'https://www.appleemail.top',
+        applemail_pool_dir: cfg.applemail_pool_dir || 'mail',
+        applemail_pool_file: cfg.applemail_pool_file || '',
+        applemail_mailboxes: cfg.applemail_mailboxes || 'INBOX,Junk',
         yescaptcha_key: cfg.yescaptcha_key || '',
         moemail_api_url: cfg.moemail_api_url || '',
         moemail_api_key: cfg.moemail_api_key || '',
@@ -81,6 +85,7 @@ export default function RegisterTaskPage() {
         cfworker_domain_override: '',
         cfworker_subdomain: cfg.cfworker_subdomain || '',
         cfworker_random_subdomain: parseBooleanConfigValue(cfg.cfworker_random_subdomain),
+        cfworker_random_name_subdomain: parseBooleanConfigValue(cfg.cfworker_random_name_subdomain),
         cfworker_fingerprint: cfg.cfworker_fingerprint || '',
         smstome_cookie: cfg.smstome_cookie || '',
         smstome_country_slugs: cfg.smstome_country_slugs || '',
@@ -100,6 +105,10 @@ export default function RegisterTaskPage() {
     const values = await form.validateFields()
     const registerExtra = {
       mail_provider: values.mail_provider,
+      applemail_base_url: values.applemail_base_url,
+      applemail_pool_dir: values.applemail_pool_dir,
+      applemail_pool_file: values.applemail_pool_file,
+      applemail_mailboxes: values.applemail_mailboxes,
       laoudo_auth: values.laoudo_auth,
       laoudo_email: values.laoudo_email,
       laoudo_account_id: values.laoudo_account_id,
@@ -138,6 +147,7 @@ export default function RegisterTaskPage() {
       cfworker_domain_override: values.cfworker_domain_override,
       cfworker_subdomain: values.cfworker_subdomain,
       cfworker_random_subdomain: values.cfworker_random_subdomain,
+      cfworker_random_name_subdomain: values.cfworker_random_name_subdomain,
       cfworker_fingerprint: values.cfworker_fingerprint,
       smstome_cookie: values.smstome_cookie,
       smstome_country_slugs: values.smstome_country_slugs,
@@ -220,6 +230,9 @@ export default function RegisterTaskPage() {
         executor_type: 'protocol',
         captcha_solver: 'yescaptcha',
         mail_provider: 'luckmail',
+        applemail_base_url: 'https://www.appleemail.top',
+        applemail_pool_dir: 'mail',
+        applemail_mailboxes: 'INBOX,Junk',
         gptmail_base_url: 'https://mail.chatgpt.org.uk',
         cloudmail_timeout: 30,
         count: 1,
@@ -286,6 +299,7 @@ export default function RegisterTaskPage() {
             <Select
               options={[
                 { value: 'luckmail', label: 'LuckMail' },
+                { value: 'applemail', label: 'AppleMail / 小苹果' },
                 { value: 'moemail', label: 'MoeMail (sall.cc)' },
                 { value: 'tempmail_lol', label: 'TempMail.lol' },
                 { value: 'skymail', label: 'SkyMail (CloudMail)' },
@@ -370,6 +384,30 @@ export default function RegisterTaskPage() {
               </Form.Item>
             </>
           )}
+          {mailProvider === 'applemail' && (
+            <>
+              <Form.Item name="applemail_base_url" label="API URL">
+                <Input placeholder="https://www.appleemail.top" />
+              </Form.Item>
+              <Form.Item
+                name="applemail_pool_dir"
+                label="邮箱池目录"
+                extra="默认读取项目根目录下的 mail 目录。"
+              >
+                <Input placeholder="mail" />
+              </Form.Item>
+              <Form.Item
+                name="applemail_pool_file"
+                label="邮箱池文件（可选）"
+                extra="留空会自动使用目录中最新的 .json/.txt 文件；JSON 内容导入请到全局配置页操作。"
+              >
+                <Input placeholder="applemail_20260403.json" />
+              </Form.Item>
+              <Form.Item name="applemail_mailboxes" label="轮询文件夹">
+                <Input placeholder="INBOX,Junk" />
+              </Form.Item>
+            </>
+          )}
           {mailProvider === 'gptmail' && (
             <>
               <Form.Item name="gptmail_base_url" label="API URL">
@@ -433,8 +471,11 @@ export default function RegisterTaskPage() {
               >
                 <Input placeholder="mail / pool-a" />
               </Form.Item>
-              <Form.Item name="cfworker_random_subdomain" label="随机子域名" valuePropName="checked">
+              <Form.Item name="cfworker_random_subdomain" valuePropName="checked">
                 <Checkbox>每次注册前随机生成一层子域名</Checkbox>
+              </Form.Item>
+              <Form.Item name="cfworker_random_name_subdomain" valuePropName="checked">
+                <Checkbox>使用随机姓名作为子域名</Checkbox>
               </Form.Item>
               <Form.Item name="cfworker_fingerprint" label="Fingerprint (可选)">
                 <Input placeholder="cfb82279f..." />
