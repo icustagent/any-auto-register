@@ -32,8 +32,7 @@ services:
       - ${APP_EXTERNAL_LOGS_BIND:-./external_logs}:/app/services/external_logs
     shm_size: "1gb"
     networks:
-      - apinetwork
+      - anyautoregister
 
 networks:
-  apinetwork:
-    external: true
+  anyautoregister:
